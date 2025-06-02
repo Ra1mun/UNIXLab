@@ -28,19 +28,34 @@ func generateTask() Task {
 	}
 }
 
-func main() {
-	// Initialize random seed
-	rand.Seed(time.Now().UnixNano())
-
-	// Kafka configuration
+func createProducer(brokerList []string) (sarama.SyncProducer, error) {
 	config := sarama.NewConfig()
 	config.Producer.Return.Successes = true
 	config.Producer.Return.Errors = true
+	config.Producer.RequiredAcks = sarama.WaitForAll
+	config.Producer.Retry.Max = 5
+	config.Producer.Retry.Backoff = 100 * time.Millisecond
 
-	// Create producer
-	producer, err := sarama.NewSyncProducer([]string{"kafka:9092"}, config)
+	return sarama.NewSyncProducer(brokerList, config)
+}
+
+func main() {
+	rand.Seed(time.Now().UnixNano())
+
+	brokerList := []string{"kafka:29092"}
+
+	var producer sarama.SyncProducer
+	var err error
+	for i := 0; i < 30; i++ {
+		producer, err = createProducer(brokerList)
+		if err == nil {
+			break
+		}
+		log.Printf("Failed to create producer, retrying in 1 second... (attempt %d/30)", i+1)
+		time.Sleep(time.Second)
+	}
 	if err != nil {
-		log.Fatalf("Failed to create producer: %s", err)
+		log.Fatalf("Failed to create producer after 30 attempts: %s", err)
 	}
 	defer producer.Close()
 
@@ -50,7 +65,6 @@ func main() {
 
 	fmt.Println("Producer started. Generating tasks...")
 
-	// Generate and send tasks
 	for {
 		select {
 		case <-signals:
@@ -72,6 +86,13 @@ func main() {
 			partition, offset, err := producer.SendMessage(msg)
 			if err != nil {
 				log.Printf("Failed to send message: %s", err)
+				producer.Close()
+				producer, err = createProducer(brokerList)
+				if err != nil {
+					log.Printf("Failed to recreate producer: %s", err)
+					time.Sleep(time.Second)
+					continue
+				}
 			} else {
 				fmt.Printf("Sent task: %s (partition=%d, offset=%d)\n", taskJSON, partition, offset)
 			}
@@ -79,4 +100,4 @@ func main() {
 			time.Sleep(2 * time.Second)
 		}
 	}
-} 
+}

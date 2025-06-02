@@ -7,17 +7,34 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/Shopify/sarama"
 )
 
-func main() {
+func createConsumer(brokerList []string) (sarama.Consumer, error) {
 	config := sarama.NewConfig()
 	config.Consumer.Return.Errors = true
+	config.Consumer.Offsets.Initial = sarama.OffsetNewest
 
-	consumer, err := sarama.NewConsumer([]string{"kafka:9092"}, config)
+	return sarama.NewConsumer(brokerList, config)
+}
+
+func main() {
+	brokerList := []string{"kafka:29092"}
+
+	var consumer sarama.Consumer
+	var err error
+	for i := 0; i < 30; i++ {
+		consumer, err = createConsumer(brokerList)
+		if err == nil {
+			break
+		}
+		log.Printf("Failed to create consumer, retrying in 1 second... (attempt %d/30)", i+1)
+		time.Sleep(time.Second)
+	}
 	if err != nil {
-		log.Fatalf("Failed to create consumer: %s", err)
+		log.Fatalf("Failed to create consumer after 30 attempts: %s", err)
 	}
 	defer consumer.Close()
 
@@ -27,11 +44,9 @@ func main() {
 	}
 	defer partitionConsumer.Close()
 
-	// Handle OS signals for graceful shutdown
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
-	// Get hostname for worker identification
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "unknown"
@@ -39,15 +54,12 @@ func main() {
 
 	fmt.Printf("Worker %s started and waiting for tasks...\n", hostname)
 
-	// Process messages
 	for {
 		select {
 		case msg := <-partitionConsumer.Messages():
 			fmt.Printf("Worker %s processing task: %s\n", hostname, string(msg.Value))
-			// Simulate task processing
-			// In a real application, you would implement actual task processing logic here
 		case err := <-partitionConsumer.Errors():
-			fmt.Printf("Error: %s\n", err.Error())
+			log.Fatalf("Failed to create partition consumer: %s", err)
 		case <-signals:
 			fmt.Println("Shutting down worker...")
 			return

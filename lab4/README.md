@@ -1,55 +1,56 @@
-# Microservice Task Processing System
+# Микросервисная система обработки задач
 
-This is a microservice architecture that demonstrates horizontal scaling and message processing using Apache Kafka as a message broker.
+Это микросервисная архитектура, демонстрирующая горизонтальное масштабирование и обработку сообщений с использованием Apache Kafka в качестве брокера сообщений.
 
-## Architecture
+## Архитектура
 
-The system consists of the following components:
+Система состоит из следующих компонентов:
 
-1. **Producer Service** (Python)
-   - Generates random tasks and sends them to Kafka
-   - Tasks include different types: process_data, generate_report, send_notification, update_database
+1. **Сервис-производитель**
+   - Генерирует случайные задания и отправляет их в Kafka.
+   - Задачи включают в себя различные типы: обработать_данные, сгенерировать_отчет, отправить_уведомление, обновить_базу данных
 
-2. **Worker Service** (Go)
-   - Consumes tasks from Kafka
-   - Horizontally scalable (3 replicas by default)
-   - Each worker processes tasks independently
+2. **Worker Service**
+   - Потребляет задачи из Kafka
+   - Горизонтально масштабируемый (3 реплики по умолчанию)
+   - Каждый рабочий обрабатывает задания независимо
 
-3. **Message Broker** (Apache Kafka)
-   - Handles message distribution between producer and workers
-   - Ensures reliable message delivery
+3. **Брокер сообщений** (Apache Kafka)
+   - Занимается распределением сообщений между производителем и рабочими
+   - Обеспечивает надежную доставку сообщений
 
-## Prerequisites
+
+## Предварительные условия
 
 - Docker
 - Docker Compose
 
-## Running the System
+## Запуск системы
 
-1. Build and start all services:
-   ```bash
+1. Соберите и запустите все сервисы:
+   ``bash
    docker-compose up --build
    ```
 
-2. To scale the number of workers:
-   ```bash
+2. Масштабируем количество рабочих:
+   ``bash
    docker-compose up --scale worker=5
    ```
 
-3. To stop all services:
-   ```bash
+3. Остановить все сервисы:
+   ``bash
    docker-compose down
    ```
 
-## Monitoring
+## Мониторинг
 
-- The producer will output messages when it sends tasks
-- Each worker will output messages when it receives and processes tasks
-- You can see the worker hostnames in the logs to verify load balancing
+- Производитель выводит сообщения при отправке заданий
+- Каждый рабочий выводит сообщения, когда получает и обрабатывает задания
+- Вы можете увидеть имена хостов рабочих в журналах, чтобы проверить балансировку нагрузки
 
-## Architecture Details
+## Детали архитектуры
 
-- The producer generates tasks every 2 seconds
-- Workers automatically consume tasks from Kafka
-- Kafka ensures that each task is processed by only one worker
-- The system is horizontally scalable - you can add more workers without modifying the code 
+- Производитель генерирует задания каждые 2 секунды
+- Рабочие автоматически потребляют задания из Kafka
+- Kafka гарантирует, что каждая задача будет обрабатываться только одним работником
+- Система горизонтально масштабируема - вы можете добавить больше рабочих без изменения кода
