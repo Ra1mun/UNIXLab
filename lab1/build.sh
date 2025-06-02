@@ -25,6 +25,8 @@ if [ -z "$output_file" ]; then
     exit 2
 fi
 
+
+
 case "$source_file" in
     *.c)
         compiler="gcc"
@@ -45,15 +47,31 @@ case "$source_file" in
         ;;
 esac
 
-temp_dir=$(mktemp -d)
+temp_dir=$(mktemp -d)  || {
+    echo "Error: Failed to create temp dir" >&2
+    exit 3
+}
 
-trap 'rm -rf "$temp_dir"' EXIT
+clean_dir() {
+    rm -rf "$TEMP_DIR"
+    exit "$1"
+}
+
+trap 'clean_dir 130' INT
+trap 'clean_dir 143' TERM
+trap 'clean_dir $?' EXIT
 
 original_dir=$(pwd)
 
-cp "$source_file" "$temp_dir/"
+cp "$source_file" "$temp_dir/" || {
+    echo "Error: Failed to copy" >&2
+    clean_dir 6
+}
 
-cd "$temp_dir"
+cd "$temp_dir" || {
+    echo "Error: Failed to change directory" >&2
+    clean_dir 7
+}
 
 if [ "$compiler" = "pdflatex" ]; then
     jobname=$(basename "$output_file" .pdf)
@@ -61,12 +79,14 @@ if [ "$compiler" = "pdflatex" ]; then
     pdflatex -jobname="$jobname" "$(basename "$source_file")" > /dev/null 2>&1
     if [ ! -f "$output_file" ]; then
         echo "Compilation failed"
-        exit 3
+        clean_dir 9
     fi
 else
     $compiler -o "$output_file" "$(basename "$source_file")" > /dev/null 2>&1
 fi
 
-mv "$output_file" "$original_dir/"
+mv "$output_file" "$original_dir/" || {
+    clean_dir 11
+}
 
-exit 0
+clean_dir 0
