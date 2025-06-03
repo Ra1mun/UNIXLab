@@ -1,11 +1,12 @@
 package main
 
 import (
-	_ "context"
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -54,14 +55,45 @@ func main() {
 
 	fmt.Printf("Worker %s started and waiting for tasks...\n", hostname)
 
+	_, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
+
+	isShuttingDown := false
+
 	for {
 		select {
 		case msg := <-partitionConsumer.Messages():
-			fmt.Printf("Worker %s processing task: %s\n", hostname, string(msg.Value))
+			if isShuttingDown {
+				continue
+			}
+			wg.Add(1)
+			go func(msg *sarama.ConsumerMessage) {
+				defer wg.Done()
+				fmt.Printf("Worker %s processing task: %s\n", hostname, string(msg.Value))
+				// Simulate task processing
+				time.Sleep(time.Second)
+				fmt.Printf("Worker %s completed task: %s\n", hostname, string(msg.Value))
+			}(msg)
 		case err := <-partitionConsumer.Errors():
-			log.Fatalf("Failed to create partition consumer: %s", err)
+			log.Printf("Error from partition consumer: %s", err)
 		case <-signals:
-			fmt.Println("Shutting down worker...")
+			fmt.Println("Received shutdown signal. Stopping new task processing...")
+			isShuttingDown = true
+
+			done := make(chan struct{})
+			go func() {
+				wg.Wait()
+				close(done)
+			}()
+
+			select {
+			case <-done:
+				fmt.Println("All tasks completed, shutting down gracefully")
+			case <-time.After(10 * time.Second):
+				fmt.Println("Shutdown timeout reached, forcing exit")
+			}
 			return
 		}
 	}

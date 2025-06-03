@@ -59,7 +59,6 @@ func main() {
 	}
 	defer producer.Close()
 
-	// Handle OS signals for graceful shutdown
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
